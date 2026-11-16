@@ -239,8 +239,8 @@ details.mini > summary::-webkit-details-marker { display: none; }
 .trk-ctl.sem-temp { grid-template-columns: 40px 1fr auto auto 40px; }
 @media (max-width: 420px) { .trk-ctl, .trk-ctl.sem-temp { grid-template-columns: 34px 1fr auto auto 34px; } .trk-ctl button[data-s="t"] { display: none; } }
 .alerta { border: 1px solid var(--sangue); border-left-width: 3px; border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: rgba(193,18,31,.08); font-size: 14px; }
-.marca { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--line2); background: var(--bg2); font: 600 13px var(--f-mono); }
-.marca.on { background: var(--red); border-color: var(--red-hi); color: #fff; }
+.marca-turno { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--line2); background: var(--bg2); font: 600 13px var(--f-mono); }
+.marca-turno.on { background: var(--red); border-color: var(--red-hi); color: #fff; }
 .def-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
 .def-roll { background: var(--bg2); border: 1px solid var(--line2); border-radius: 9px; padding: 8px; text-align: left; display: flex; flex-direction: column; }
 .def-roll .k { font: 600 9.5px var(--f-mono); letter-spacing: .1em; color: var(--dim); text-transform: uppercase; }
@@ -1434,8 +1434,8 @@ R.agente = () => {
     <div class="row nowrap" style="margin:-4px 0 12px;gap:6px"><select class="campo mini" id="dmg-tipo" title="Tipo do dano (aplica sua RD)"><option value="">tipo de dano: comum</option>${['Balístico', 'Corte', 'Impacto', 'Perfuração', 'Fogo', 'Paranormal'].map(t => `<option>${t}</option>`).join('')}</select>${A.pericias.Fortitude ? `<label class="small nowrap" style="display:flex;gap:4px;align-items:center;white-space:nowrap"><input type="checkbox" id="dmg-bloq"> bloqueei</label>` : ''}</div>
     ${barra('pe', 'PE', D.pe, 'var(--conhecimento)')}${barra('san', 'SAN', D.san, 'var(--energia)')}
     <p class="small dim" style="margin:-4px 0 10px">Digite o valor e toque em Dano/Curar. O dano de PV desconta primeiro dos temporários e da sua RD (escolha o tipo). PE gastos neste turno: <b>${A.turno.peGasto || 0}/${D.lim}</b>.</p>
-    ${A.cond.includes('Morrendo') ? `<div class="alerta"><b>💀 Morrendo</b> — começar 3 turnos assim na cena = morte. Medicina DT 20 estabiliza.<div class="row" style="margin-top:6px">${[1, 2, 3].map(n => `<button class="marca ${A.turno.morte >= n ? 'on' : ''}" data-a="contador" data-k="morte" data-v="${n}">${n}</button>`).join('')}<span class="small dim">turnos (sobe sozinho a cada “novo turno”)</span></div></div>` : ''}
-    ${A.cond.includes('Enlouquecendo') ? `<div class="alerta" style="border-color:var(--energia)"><b>🌀 Enlouquecendo</b> — começar 3 turnos assim na cena = insano. Diplomacia DT 20 acalma.<div class="row" style="margin-top:6px">${[1, 2, 3].map(n => `<button class="marca ${A.turno.louco >= n ? 'on' : ''}" data-a="contador" data-k="louco" data-v="${n}">${n}</button>`).join('')}</div></div>` : ''}
+    ${A.cond.includes('Morrendo') ? `<div class="alerta"><b>💀 Morrendo</b> — começar 3 turnos assim na cena = morte. Medicina DT 20 estabiliza.<div class="row" style="margin-top:6px">${[1, 2, 3].map(n => `<button class="marca-turno ${A.turno.morte >= n ? 'on' : ''}" data-a="contador" data-k="morte" data-v="${n}">${n}</button>`).join('')}<span class="small dim">turnos (sobe sozinho a cada “novo turno”)</span></div></div>` : ''}
+    ${A.cond.includes('Enlouquecendo') ? `<div class="alerta" style="border-color:var(--energia)"><b>🌀 Enlouquecendo</b> — começar 3 turnos assim na cena = insano. Diplomacia DT 20 acalma.<div class="row" style="margin-top:6px">${[1, 2, 3].map(n => `<button class="marca-turno ${A.turno.louco >= n ? 'on' : ''}" data-a="contador" data-k="louco" data-v="${n}">${n}</button>`).join('')}</div></div>` : ''}
     ${sanAt < D.san / 2 ? `<div class="alerta" style="border-color:var(--energia)"><b>🌀 Perturbado</b> (menos da metade da SAN). Na 1ª vez na cena, ganhe um efeito de insanidade (só interpretação). <button class="tag" data-a="insanidade">🎲 rolar efeito</button>${A.insan ? `<p class="small" style="margin:6px 0 0"><b>${A.insan.n}.</b> ${esc(INSANIDADE[A.insan.n - 1])}</p>` : ''} <a href="#" data-ir="efeitos" class="small">como interpretar ›</a></div>` : ''}
     <label class="lbl">Descanso (interlúdio)</label>
     <div class="row nowrap"><select class="campo mini" id="desc-q"><option value="0.5">Precário (½)</option><option value="1" selected>Normal</option><option value="2">Confortável (×2)</option><option value="3">Luxuoso (×3)</option></select><button class="btn" data-a="dormir">😴 Dormir</button><button class="btn" data-a="relaxar">🧘 Relaxar</button></div>
@@ -1866,13 +1866,39 @@ R.efeitos = () => `<div class="eyebrow">Interpretação</div><h1 class="titulo">
 let atual = store.get('view', 'inicio');
 const doLink = location.hash.slice(1).split('/');
 if (R[doLink[0]]) { atual = doLink[0]; if (doLink[0] === 'classes' && doLink[1]) ST.classe = doLink[1]; if (doLink[0] === 'equip' && doLink[1]) ST.equip = decodeURIComponent(doLink[1]); }
-function chips() { $('#chips').innerHTML = VIEWS.map(([v, n]) => `<button class="${v === atual ? 'on' : ''}" data-ir="${v}">${n}</button>`).join(''); const on = $('#chips .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+let chipsDe = null;
+function chips() { if (chipsDe === atual) return; chipsDe = atual; $('#chips').innerHTML = VIEWS.map(([v, n]) => `<button class="${v === atual ? 'on' : ''}" data-ir="${v}">${n}</button>`).join(''); const on = $('#chips .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+// Atualiza só o que mudou (sem refazer a página inteira nem repetir a animação de entrada).
+function morph(velho, novo) {
+  if (velho.nodeType !== novo.nodeType || velho.nodeName !== novo.nodeName) { velho.replaceWith(novo); return; }
+  if (velho.nodeType !== 1) { if (velho.nodeValue !== novo.nodeValue) velho.nodeValue = novo.nodeValue; return; }
+  for (const a of [...velho.attributes]) if (!novo.hasAttribute(a.name)) velho.removeAttribute(a.name);
+  for (const a of novo.attributes) if (velho.getAttribute(a.name) !== a.value) velho.setAttribute(a.name, a.value);
+  const tag = velho.nodeName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') {
+    if (velho !== document.activeElement && velho.value !== novo.value && tag !== 'SELECT') velho.value = novo.value;
+    if (tag === 'INPUT' && velho.checked !== novo.checked) velho.checked = novo.checked;
+  }
+  if (tag === 'TEXTAREA') return;
+  const vf = velho.childNodes, nf = [...novo.childNodes];
+  nf.forEach((n, i) => { if (i < vf.length) morph(vf[i], n); else velho.appendChild(n); });
+  while (vf.length > nf.length) velho.lastChild.remove();
+  if (tag === 'SELECT') { const i = novo.selectedIndex; if (velho.selectedIndex !== i && velho !== document.activeElement) velho.selectedIndex = i; }
+}
+let renderDe = null;
 function render(manterScroll) {
-  const y = window.scrollY;
-  $('#main').innerHTML = `<div class="pagina">${(R[atual] || R.inicio)()}</div>`;
+  const y = window.scrollY, html = `<div class="pagina">${(R[atual] || R.inicio)()}</div>`, pag = $('#main > .pagina');
+  if (manterScroll && renderDe === atual && pag) {
+    const t = document.createElement('template'); t.innerHTML = html;
+    const nova = t.content.firstElementChild; nova.style.animation = 'none';
+    morph(pag, nova);
+  } else {
+    $('#main').innerHTML = html;
+  }
+  renderDe = atual;
   chips();
   estrelas();
-  window.scrollTo(0, manterScroll ? y : 0);
+  if (!manterScroll || window.scrollY !== y) window.scrollTo(0, manterScroll ? y : 0);
   document.documentElement.style.setProperty('--top', $('#hdr').offsetHeight + 'px');
 }
 function ir(v, alvo) {
