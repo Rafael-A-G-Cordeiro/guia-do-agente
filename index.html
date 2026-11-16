@@ -239,6 +239,8 @@ details.mini > summary::-webkit-details-marker { display: none; }
 .trk-ctl.sem-temp { grid-template-columns: 40px 1fr auto auto 40px; }
 @media (max-width: 420px) { .trk-ctl, .trk-ctl.sem-temp { grid-template-columns: 34px 1fr auto auto 34px; } .trk-ctl button[data-s="t"] { display: none; } }
 .alerta { border: 1px solid var(--sangue); border-left-width: 3px; border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: rgba(193,18,31,.08); font-size: 14px; }
+.eq-linha { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.eq-linha .campo { padding: 9px 10px; font-size: 15px; min-width: 0; }
 .marca-turno { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--line2); background: var(--bg2); font: 600 13px var(--f-mono); }
 .marca-turno.on { background: var(--red); border-color: var(--red-hi); color: #fff; }
 .def-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
@@ -709,7 +711,7 @@ const cap = s => s.charAt(0) + s.slice(1).toLowerCase();
 const store = { get(k, d) { try { const v = localStorage.getItem('guia-' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('guia-' + k, JSON.stringify(v)); } catch (e) {} } };
 
 const VIEWS = [
-  ['inicio', 'Início'], ['agente', 'Meu agente'], ['diario', '📓 Diário'], ['favoritos', '⭐ Favoritos'], ['criar', 'Criar agente'], ['classes', 'Classes'], ['origens', 'Origens'], ['pericias', 'Perícias'],
+  ['inicio', 'Início'], ['agente', 'Meu agente'], ['diario', '📓 Diário'], ['equipe', '👥 Equipe'], ['favoritos', '⭐ Favoritos'], ['criar', 'Criar agente'], ['classes', 'Classes'], ['origens', 'Origens'], ['pericias', 'Perícias'],
   ['regras', 'Regras'], ['condicoes', 'Condições'], ['efeitos', '🎭 Efeitos na mesa'], ['equip', 'Equipamento'], ['rituais', 'Rituais'], ['poderes', 'Poderes paranormais']
 ];
 const ST = { classe: store.get('classe', 'combatente'), regra: 'Básico', equip: 'Armas', armaF: 'Todas', ritEl: 'Todos', ritC: 0, ritQ: '', invQ: '', emG: 'Mente' };
@@ -1517,12 +1519,13 @@ R.agente = () => {
     ${paranormais().length ? `<label class="lbl">Poderes paranormais</label>${paranormais().map(p => `<div class="hab"><b>${esc(p)}</b>${textoPar(p)}</div>`).join('')}` : ''}`,
     `<span class="mono small dim">${poderesClasse().length + paranormais().length} poderes</span>`)}
 
-  ${lr.total || A.rituais.length ? sec('rituais', 'Rituais', `
-    <p class="small mono" style="margin-top:0">Conhecidos: ${A.rituais.length} / ${lr.total} · até ${lr.circ}º círculo · DT ${D.dtRit}</p>
+  ${sec('rituais', 'Rituais', `
+    ${lr.total ? `<p class="small mono" style="margin-top:0">Conhecidos: ${A.rituais.length} / ${lr.total} · até ${lr.circ}º círculo · DT ${D.dtRit}</p>`
+      : `<p class="small muted" style="margin-top:0">Sua classe não conjura rituais por padrão. Dá para aprender pelo poder paranormal <b>Aprender Ritual</b> (em Transcender), ou se o mestre liberar. Pode adicionar aqui mesmo assim. DT ${D.dtRit}.</p>`}
     <select class="campo" data-as="addritual"><option value="">+ aprender ritual</option>${[1, 2, 3, 4].filter(x => x <= Math.max(1, lr.circ)).map(ci => `<optgroup label="${ci}º círculo">${RITUAIS.filter(r => r.circulo === ci && !A.rituais.includes(r.nome) && !(r.elementos[0] === 'MEDO' && ci === 4)).map(r => `<option value="${esc(r.nome)}">${esc(r.nome)} (${r.elementos.map(cap).join('/')})</option>`).join('')}</optgroup>`).join('')}</select>
     <div style="margin-top:10px">${A.rituais.map((nm, i) => { const r = RITUAIS.find(x => x.nome === nm); if (!r) return ''; const el = cap(r.elementos[0]), custo = ({ 1: 1, 2: 3, 3: 6, 4: 10 })[r.circulo]; return `<div class="card rit" style="--c:${COR[el]};padding:12px"><div class="row nowrap"><span class="circ">${r.circulo}º</span><b style="flex:1">${esc(r.nome)}</b><button class="btn mini-btn" data-a="conjurar" data-i="${i}">✦ ${custo} PE</button><button class="tag red" data-a="rmritual" data-i="${i}">✕</button></div><p class="small" style="margin:6px 0 0">${esc(r.resumo)}</p><p class="small dim" style="margin:4px 0 0">${[r.execucao, r.alcance, r.alvo || r.area || r.efeito, r.duracao, r.resistencia].filter(Boolean).map(esc).join(' · ')} · p. ${r.pagina}</p></div>`; }).join('') || '<span class="small dim">Nenhum ritual ainda.</span>'}</div>
     <p class="small dim">“✦ Conjurar” gasta o PE, marca a ação e já abre o teste de Ocultismo do custo do paranormal (DT 20 + custo).</p>`,
-    `<span class="mono small dim">${A.rituais.length}/${lr.total}</span>`) : ''}
+    `<span class="mono small dim">${lr.total ? `${A.rituais.length}/${lr.total}` : A.rituais.length || ''}</span>`)}
 
   ${sec('inv', 'Inventário e equipamento', `
     <div class="carga"><div class="tbar" style="height:18px"><i style="width:${Math.min(100, D.esp / Math.max(1, D.carga) * 100)}%;background:${D.esp > D.carga * 2 ? 'var(--red-hi)' : D.sobre ? 'var(--warn)' : 'var(--ok)'}"></i><span style="font-size:11.5px">${D.esp} / ${D.carga} espaços${D.sobre ? ' · SOBRECARREGADO (–5 Def, –3m)' : ''}</span></div></div>
@@ -1601,7 +1604,7 @@ function acaoAgente(t) {
     case 'g-ritual': {
       if (A.rituais.includes(ds.v)) { aviso('Seu agente já conhece esse ritual.'); return; }
       const lr = limiteRituais(); A.rituais.push(ds.v);
-      aviso(lr.total && A.rituais.length <= lr.total ? `✦ ${ds.v} aprendido (${A.rituais.length}/${lr.total}).` : `✦ ${ds.v} adicionado — atenção: passa do seu limite de rituais (${lr.total}).`); break;
+      aviso(lr.total && A.rituais.length <= lr.total ? `✦ ${ds.v} aprendido (${A.rituais.length}/${lr.total}).` : lr.total ? `✦ ${ds.v} adicionado — atenção: passa do seu limite de rituais (${lr.total}).` : `✦ ${ds.v} adicionado à ficha (combine com o mestre).`); break;
     }
     case 'addinv': addInv(ds.k); break;
     case 'em-add': if (!A.cond.includes(ds.v)) A.cond.push(ds.v); aviso(`${ds.v} marcado na ficha de ${A.nome || 'seu agente'} (já aplicado nos números).`); break;
@@ -1861,6 +1864,86 @@ R.efeitos = () => `<div class="eyebrow">Interpretação</div><h1 class="titulo">
     <ul class="small em-jogue">${e.jogue.map(j => `<li>${esc(j)}</li>`).join('')}</ul>
     ${e.fale ? `<p class="small em-fale">${esc(e.fale)}</p>` : ''}</div>`; }).join('')}`;
 
+/* ---------- MINHA EQUIPE ---------- */
+let EQUIPE = store.get('equipe', { nome: '', membros: [] });
+const salvarEq = () => store.set('equipe', EQUIPE);
+
+R.equipe = () => {
+  const M = EQUIPE.membros;
+  return `<div class="eyebrow">Ordo Realitas</div><h1 class="titulo">Minha equipe</h1>
+  <p class="sub">Quem é quem na mesa: o agente e a pessoa por trás dele. Fica salvo só neste aparelho.</p>
+  <div class="card">
+    <label class="small dim" for="eq-nome">Nome da equipe</label>
+    <input class="campo" id="eq-nome" data-eqf="nome" placeholder="Ex.: Equipe Kian" value="${esc(EQUIPE.nome)}" style="margin-top:4px">
+  </div>
+  <div class="card">
+    ${M.length ? M.map(m => `<div class="eq-linha">
+      <input class="campo" data-eqf="agente" data-id="${m.id}" placeholder="Agente" value="${esc(m.agente)}" aria-label="Nome do agente">
+      <input class="campo" data-eqf="jogador" data-id="${m.id}" placeholder="Jogador" value="${esc(m.jogador)}" aria-label="Quem joga">
+      <button class="tag red" data-eq="rm" data-id="${m.id}" aria-label="Tirar da equipe">✕</button>
+    </div>`).join('') : '<p class="small dim" style="margin-top:0">Ninguém na equipe ainda.</p>'}
+    <div class="eq-linha" style="margin-top:12px">
+      <input class="campo" id="eq-ag" placeholder="Agente (ex.: Washington Bolsonaro)" aria-label="Nome do agente">
+      <input class="campo" id="eq-jg" placeholder="Jogador (ex.: Rafael)" aria-label="Quem joga">
+      <button class="btn" data-eq="add" aria-label="Adicionar">＋</button>
+    </div>
+    ${typeof A !== 'undefined' && A.nome && !M.some(m => m.agente === A.nome) ? `<button class="btn" data-eq="eu" style="margin-top:10px">＋ Adicionar meu agente (${esc(A.nome)})</button>` : ''}
+  </div>
+  <div class="card">
+    <b>Compartilhar com o grupo</b>
+    <p class="small muted" style="margin:4px 0 10px">Copie a lista e mande no WhatsApp. Quem receber cola aqui embaixo e a equipe aparece igualzinha.</p>
+    <div class="row">${M.length ? '<button class="btn" data-eq="copiar">📋 Copiar equipe</button>' : ''}<button class="btn" data-eq="colar-abrir">📥 Colar lista</button>${M.length ? '<button class="btn" data-eq="limpar" style="color:var(--red-hi)">Limpar</button>' : ''}</div>
+    <div id="eq-colar" class="hidden" style="margin-top:10px">
+      <textarea class="campo" id="eq-txt" rows="5" placeholder="Uma pessoa por linha:&#10;Washington Bolsonaro — Rafael&#10;Outro Agente — Fulano"></textarea>
+      <button class="btn" data-eq="colar" style="margin-top:8px">Usar esta lista</button>
+    </div>
+  </div>`;
+};
+
+function textoEquipe() {
+  return `👥 ${EQUIPE.nome || 'Minha equipe'}\n` + EQUIPE.membros.map(m => `${m.agente || '?'} — ${m.jogador || '?'}`).join('\n');
+}
+function lerEquipe(txt) {
+  const linhas = txt.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  let nome = EQUIPE.nome; const membros = [];
+  for (const l of linhas) {
+    if (/^👥/.test(l)) { nome = l.replace(/^👥\s*/, ''); continue; }
+    const p = l.split(/\s+[—–-]\s+|\s*[—–]\s*|\s*:\s*|\s*\|\s*/);
+    membros.push({ id: novoId(), agente: (p[0] || '').trim(), jogador: p.slice(1).join(' ').trim() });
+  }
+  return { nome, membros };
+}
+function acaoEquipe(t) {
+  const ds = t.dataset;
+  if (ds.eq === 'add') {
+    const ag = $('#eq-ag').value.trim(), jg = $('#eq-jg').value.trim();
+    if (!ag && !jg) { $('#eq-ag').focus(); return; }
+    EQUIPE.membros.push({ id: novoId(), agente: ag, jogador: jg }); salvarEq(); render(true);
+    $('#eq-ag').value = ''; $('#eq-jg').value = ''; $('#eq-ag').focus(); return;
+  }
+  if (ds.eq === 'eu') { EQUIPE.membros.push({ id: novoId(), agente: A.nome, jogador: '' }); salvarEq(); render(true); return; }
+  if (ds.eq === 'rm') { EQUIPE.membros = EQUIPE.membros.filter(m => m.id !== ds.id); salvarEq(); render(true); return; }
+  if (ds.eq === 'limpar') { if (!confirm('Apagar a equipe deste aparelho?')) return; EQUIPE = { nome: '', membros: [] }; salvarEq(); render(true); return; }
+  if (ds.eq === 'copiar') {
+    const txt = textoEquipe(), ok = () => aviso('Equipe copiada. Cole no WhatsApp.');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, () => copiarVelho(txt, ok)); else copiarVelho(txt, ok);
+    return;
+  }
+  if (ds.eq === 'colar-abrir') { $('#eq-colar').classList.toggle('hidden'); const ta = $('#eq-txt'); if (ta) ta.focus(); return; }
+  if (ds.eq === 'colar') {
+    const novo = lerEquipe($('#eq-txt').value || '');
+    if (!novo.membros.length) { aviso('Não achei ninguém na lista.'); return; }
+    if (EQUIPE.membros.length && !confirm(`Trocar a equipe atual por esta (${novo.membros.length} pessoas)?`)) return;
+    EQUIPE = novo; salvarEq(); render(true); aviso('Equipe atualizada.'); return;
+  }
+}
+function campoEquipe(el) {
+  const f = el.dataset.eqf;
+  if (f === 'nome') EQUIPE.nome = el.value;
+  else { const m = EQUIPE.membros.find(x => x.id === el.dataset.id); if (m) m[f] = el.value; }
+  salvarEq();
+}
+
 
 /* ---------- navegação ---------- */
 let atual = store.get('view', 'inicio');
@@ -1983,6 +2066,7 @@ document.addEventListener('click', e => {
   const ds = t.dataset;
   if (ds.fav) { e.preventDefault(); e.stopPropagation(); alternarFav(ds.fav, t); return; }
   if (ds.favir) { const it = IDX.find(x => x.alvo === ds.favir); if (it) { if (it.pre) it.pre(); ir(it.view, it.alvo); } return; }
+  if (ds.eq) { acaoEquipe(t); return; }
   if (ds.dtipo || ds.dfiltro || ds.dsess || ds.dadd || ds.dimp || ds.ddel || ds.dcopiar || ds.dlimpar) { acaoDiario(ds); return; }
   if (ds.rt) { acaoRT(t); return; }
   if (ds.rtAbrir) { e.preventDefault(); abrirTeste({ tipo: 'pericia', nome: ds.rtAbrir }); return; }
@@ -2010,6 +2094,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'q') buscar();
   if (e.target.id === 'rit-q') { ST.ritQ = e.target.value; const pos = e.target.selectionStart; render(true); const n = $('#rit-q'); n.focus(); n.setSelectionRange(pos, pos); }
   if (e.target.id === 'd-q') { DST.q = e.target.value; const pos = e.target.selectionStart; render(true); const n = $('#d-q'); n.focus(); n.setSelectionRange(pos, pos); }
+  if (e.target.dataset.eqf) campoEquipe(e.target);
   if (e.target.dataset.ab) { A[e.target.dataset.ab] = e.target.value; salvarA(); }
   if (e.target.dataset.live) { ST[e.target.dataset.live] = e.target.value; const id = e.target.id, pos = e.target.selectionStart; render(true); const n = document.getElementById(id); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
 });
