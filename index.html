@@ -241,6 +241,23 @@ details.mini > summary::-webkit-details-marker { display: none; }
 .alerta { border: 1px solid var(--sangue); border-left-width: 3px; border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: rgba(193,18,31,.08); font-size: 14px; }
 .eq-linha { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 6px; }
 .eq-linha .campo { padding: 9px 10px; font-size: 15px; min-width: 0; }
+.cb-vez { border-color: var(--red); }
+.cb-agora { margin: 10px 0 12px; padding: 12px 14px; border-radius: 12px; background: rgba(193,18,31,.12); border: 1px solid var(--red); }
+.cb-agora small { display: block; font: 600 10px var(--f-mono); letter-spacing: .25em; color: var(--red-hi); }
+.cb-agora b { display: block; font: 400 24px/1.2 var(--f-type); margin-top: 2px; overflow-wrap: anywhere; }
+.cb-agora span { color: var(--muted); font-size: 14px; }
+.cb-prox { width: 100%; padding: 14px; font-size: 17px; justify-content: center; }
+.cb-linha { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg2); }
+.cb-linha.on { border-color: var(--red-hi); background: rgba(193,18,31,.14); box-shadow: 0 0 0 1px var(--red-hi) inset; }
+.cb-linha.ini .cb-nome b { color: var(--red-hi); }
+.cb-pos { width: 22px; text-align: center; color: var(--dim); font-size: 13px; flex: none; }
+.cb-linha.on .cb-pos { color: var(--red-hi); font-weight: 700; }
+.cb-nome { flex: 1; min-width: 0; }
+.cb-nome b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-nome small { display: block; color: var(--dim); font-size: 12px; }
+.campo.cb-num { width: 66px; flex: none; padding: 8px; text-align: center; font-size: 16px; }
+.cb-add { display: flex; gap: 6px; margin-top: 12px; }
+.cb-add .campo:first-child { flex: 1; min-width: 0; }
 .marca-turno { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--line2); background: var(--bg2); font: 600 13px var(--f-mono); }
 .marca-turno.on { background: var(--red); border-color: var(--red-hi); color: #fff; }
 .def-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
@@ -711,7 +728,7 @@ const cap = s => s.charAt(0) + s.slice(1).toLowerCase();
 const store = { get(k, d) { try { const v = localStorage.getItem('guia-' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('guia-' + k, JSON.stringify(v)); } catch (e) {} } };
 
 const VIEWS = [
-  ['inicio', 'Início'], ['agente', 'Meu agente'], ['diario', '📓 Diário'], ['equipe', '👥 Equipe'], ['favoritos', '⭐ Favoritos'], ['criar', 'Criar agente'], ['classes', 'Classes'], ['origens', 'Origens'], ['pericias', 'Perícias'],
+  ['inicio', 'Início'], ['agente', 'Meu agente'], ['diario', '📓 Diário'], ['equipe', '👥 Equipe'], ['combate', '⚔️ Combate'], ['favoritos', '⭐ Favoritos'], ['criar', 'Criar agente'], ['classes', 'Classes'], ['origens', 'Origens'], ['pericias', 'Perícias'],
   ['regras', 'Regras'], ['condicoes', 'Condições'], ['efeitos', '🎭 Efeitos na mesa'], ['equip', 'Equipamento'], ['rituais', 'Rituais'], ['poderes', 'Poderes paranormais']
 ];
 const ST = { classe: store.get('classe', 'combatente'), regra: 'Básico', equip: 'Armas', armaF: 'Todas', ritEl: 'Todos', ritC: 0, ritQ: '', invQ: '', emG: 'Mente' };
@@ -1944,6 +1961,84 @@ function campoEquipe(el) {
   salvarEq();
 }
 
+/* ---------- ORDEM DE COMBATE ---------- */
+let CMB = store.get('combate', { lista: [], vez: null, rodada: 1, comecou: false });
+const salvarCmb = () => store.set('combate', CMB);
+const ordemCmb = () => CMB.lista.map((c, i) => [c, i]).sort((a, b) => ((b[0].ini ?? -999) - (a[0].ini ?? -999)) || (a[1] - b[1])).map(x => x[0]);
+
+function rolarIniMeu() {
+  const D = derivados(), r = calcPericia(PERICIAS.find(x => x.nome === 'Iniciativa'), D), t = rolarD20(r.dados);
+  return { total: t.pick + r.bonus, txt: `${t.rs.join(', ')} → ${t.pick}${r.bonus ? (r.bonus > 0 ? ' + ' : ' – ') + Math.abs(r.bonus) : ''}` };
+}
+
+R.combate = () => {
+  const L = ordemCmb(), vez = L.find(c => c.id === CMB.vez), semIni = L.filter(c => c.ini == null).length;
+  const temMeu = typeof A !== 'undefined' && A.nome && CMB.lista.some(c => c.eu);
+  const daEquipe = (typeof EQUIPE !== 'undefined' ? EQUIPE.membros : []).filter(m => m.agente && !CMB.lista.some(c => c.nome === m.agente));
+  return `<div class="eyebrow">Combate</div><h1 class="titulo">Ordem de combate</h1>
+  <p class="sub">Coloque quem luta, digite a Iniciativa de cada um e vá apertando “Próximo”.</p>
+  ${L.length ? `<div class="card cb-vez">
+    <div class="row nowrap"><span class="mono small dim" style="flex:1">RODADA <b style="font-size:22px;color:var(--warn)">${CMB.rodada}</b></span>${CMB.comecou ? '<button class="btn" data-cb="voltar" aria-label="Voltar um turno">◀</button>' : ''}</div>
+    ${CMB.comecou && vez ? `<div class="cb-agora"><small>VEZ DE</small><b>${vez.inimigo ? '👹 ' : vez.eu ? '⭐ ' : ''}${esc(vez.nome)}</b>${vez.jogador ? `<span>${esc(vez.jogador)}</span>` : ''}</div>`
+      : `<p class="small muted" style="margin:8px 0">${semIni ? `Falta Iniciativa de ${semIni}. Quem ficar sem número vai pro fim da fila.` : 'Tudo pronto.'}</p>`}
+    <button class="btn red cb-prox" data-cb="prox">${CMB.comecou ? 'Próximo ▶' : '⚔ Começar combate'}</button>
+  </div>` : ''}
+  <div class="card">
+    ${L.length ? L.map((c, i) => `<div class="cb-linha${CMB.comecou && c.id === CMB.vez ? ' on' : ''}${c.inimigo ? ' ini' : ''}">
+      <span class="cb-pos mono">${i + 1}</span>
+      <div class="cb-nome"><b>${c.inimigo ? '👹 ' : c.eu ? '⭐ ' : ''}${esc(c.nome)}</b>${c.jogador ? `<small>${esc(c.jogador)}</small>` : ''}</div>
+      ${c.eu ? '<button class="tag" data-cb="rolar" aria-label="Rolar minha Iniciativa">🎲</button>' : ''}
+      <input class="campo cb-num" type="number" inputmode="numeric" data-cbi="${c.id}" value="${c.ini ?? ''}" placeholder="Ini" aria-label="Iniciativa de ${esc(c.nome)}">
+      <button class="tag red" data-cb="rm" data-id="${c.id}" aria-label="Tirar">✕</button>
+    </div>`).join('') : '<p class="small dim" style="margin-top:0">Ninguém no combate ainda.</p>'}
+    <div class="cb-add">
+      <input class="campo" id="cb-nome" placeholder="Nome (ex.: Zumbi de Sangue)" aria-label="Nome">
+      <input class="campo cb-num" id="cb-ini" type="number" inputmode="numeric" placeholder="Ini" aria-label="Iniciativa">
+    </div>
+    <div class="row" style="margin-top:8px"><button class="btn" data-cb="add">＋ Agente</button><button class="btn" data-cb="add" data-inimigo="1" style="color:var(--red-hi)">＋ Inimigo</button></div>
+    ${(typeof A !== 'undefined' && A.nome && !temMeu) || daEquipe.length ? `<div class="row" style="margin-top:8px">
+      ${typeof A !== 'undefined' && A.nome && !temMeu ? `<button class="btn" data-cb="eu">⭐ Meu agente (rola sozinho)</button>` : ''}
+      ${daEquipe.length ? `<button class="btn" data-cb="equipe">👥 Puxar equipe (${daEquipe.length})</button>` : ''}</div>` : ''}
+  </div>
+  ${L.length ? `<div class="row"><button class="btn" data-cb="reiniciar">↺ Nova luta (zera Iniciativas)</button><button class="btn" data-cb="limpar" style="color:var(--red-hi)">Limpar tudo</button></div>
+  <p class="small dim">Empate: age primeiro quem tem mais Agilidade. Quando chega a vez do ⭐ seu agente, as ações do turno zeram sozinhas na ficha.</p>` : ''}`;
+};
+
+function acaoCombate(t) {
+  const ds = t.dataset, L = ordemCmb();
+  switch (ds.cb) {
+    case 'add': {
+      let nome = $('#cb-nome').value.trim(); const v = $('#cb-ini').value, inimigo = !!ds.inimigo;
+      if (!nome) { if (!inimigo) { $('#cb-nome').focus(); return; } nome = 'Inimigo ' + (CMB.lista.filter(c => c.inimigo).length + 1); }
+      CMB.lista.push({ id: novoId(), nome, ini: v === '' ? null : +v, inimigo });
+      salvarCmb(); render(true); $('#cb-nome').focus(); return;
+    }
+    case 'eu': { const r = rolarIniMeu(); CMB.lista.push({ id: novoId(), nome: A.nome, ini: r.total, eu: true }); aviso(`🎲 Iniciativa de ${A.nome}: ${r.total} (${r.txt})`); break; }
+    case 'rolar': { const c = CMB.lista.find(x => x.eu); if (!c) return; const r = rolarIniMeu(); c.ini = r.total; aviso(`🎲 Iniciativa: ${r.total} (${r.txt})`); break; }
+    case 'equipe': EQUIPE.membros.filter(m => m.agente && !CMB.lista.some(c => c.nome === m.agente)).forEach(m => CMB.lista.push({ id: novoId(), nome: m.agente, jogador: m.jogador, ini: null, eu: typeof A !== 'undefined' && m.agente === A.nome && !CMB.lista.some(c => c.eu) })); break;
+    case 'rm': CMB.lista = CMB.lista.filter(c => c.id !== ds.id); if (CMB.vez === ds.id) CMB.vez = null; if (!CMB.lista.length) Object.assign(CMB, { vez: null, rodada: 1, comecou: false }); break;
+    case 'prox': {
+      if (!L.length) return;
+      if (!CMB.comecou) { CMB.comecou = true; CMB.rodada = 1; CMB.vez = L[0].id; }
+      else { const i = L.findIndex(c => c.id === CMB.vez); if (i < 0 || i === L.length - 1) { CMB.vez = L[0].id; CMB.rodada++; } else CMB.vez = L[i + 1].id; }
+      const agora = L.find(c => c.id === CMB.vez);
+      if (agora && agora.eu && typeof acaoAgente === 'function') { salvarCmb(); acaoAgente({ dataset: { a: 'novoturno' } }); aviso(`⭐ Sua vez, ${agora.nome}! Ações do turno zeradas na ficha.`); return; }
+      if (navigator.vibrate) navigator.vibrate(20); break;
+    }
+    case 'voltar': {
+      const i = L.findIndex(c => c.id === CMB.vez); if (i < 0) return;
+      if (i === 0) { if (CMB.rodada > 1) { CMB.rodada--; CMB.vez = L[L.length - 1].id; } } else CMB.vez = L[i - 1].id; break;
+    }
+    case 'reiniciar': CMB.lista = CMB.lista.filter(c => !c.inimigo).map(c => Object.assign(c, { ini: null })); Object.assign(CMB, { vez: null, rodada: 1, comecou: false }); aviso('Nova luta: inimigos saíram, digite as Iniciativas de novo.'); break;
+    case 'limpar': if (!confirm('Tirar todo mundo do combate?')) return; CMB = { lista: [], vez: null, rodada: 1, comecou: false }; break;
+  }
+  salvarCmb(); render(true);
+}
+function mudarIni(el) {
+  const c = CMB.lista.find(x => x.id === el.dataset.cbi); if (!c) return;
+  c.ini = el.value === '' ? null : +el.value; salvarCmb(); render(true);
+}
+
 
 /* ---------- navegação ---------- */
 let atual = store.get('view', 'inicio');
@@ -2067,6 +2162,7 @@ document.addEventListener('click', e => {
   if (ds.fav) { e.preventDefault(); e.stopPropagation(); alternarFav(ds.fav, t); return; }
   if (ds.favir) { const it = IDX.find(x => x.alvo === ds.favir); if (it) { if (it.pre) it.pre(); ir(it.view, it.alvo); } return; }
   if (ds.eq) { acaoEquipe(t); return; }
+  if (ds.cb) { acaoCombate(t); return; }
   if (ds.dtipo || ds.dfiltro || ds.dsess || ds.dadd || ds.dimp || ds.ddel || ds.dcopiar || ds.dlimpar) { acaoDiario(ds); return; }
   if (ds.rt) { acaoRT(t); return; }
   if (ds.rtAbrir) { e.preventDefault(); abrirTeste({ tipo: 'pericia', nome: ds.rtAbrir }); return; }
@@ -2101,6 +2197,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.as) mudarAgente(t);
+  if (t.dataset.cbi) mudarIni(t);
   if (t.dataset.a && t.type === 'checkbox') acaoAgente(t);
   if (t.id === 'importar-ag' && t.files[0]) { importarAgente(t.files[0]); t.value = ''; }
 });
