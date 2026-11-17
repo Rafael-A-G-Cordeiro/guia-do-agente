@@ -2225,7 +2225,21 @@ window.addEventListener('resize', () => document.documentElement.style.setProper
 render(false);
 })();
 </script>
-<script>if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+<script>// Liga o modo offline e garante que a versão nova chegue: confere ao abrir e ao voltar pro app; se mudou, recarrega sozinho.
+(function () {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  const jaTinha = !!navigator.serviceWorker.controller;
+  let recarregou = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!jaTinha || recarregou) return;
+    recarregou = true; location.reload();
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+})();
+</script>
 <script>// Instalação do app (só na versão web): aviso toda vez que abre pelo navegador + botão fixo no topo.
 (function () {
   if (location.protocol === 'file:') return;
