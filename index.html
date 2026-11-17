@@ -1184,6 +1184,8 @@ function ataqueInfo(it, sel = {}) {
   addF(M.dano, 'efeitos');
   if (cac && cp.includes('Golpe Pesado')) { dn++; dfontes.push('Golpe Pesado +1 dado'); }
   if (ms.includes('Calibre grosso')) { dn++; dfontes.push('Calibre grosso +1 dado'); }
+  if (ms.includes('Explosiva')) { extras.push('2d6'); dfontes.push('Explosiva +2d6'); }
+  if (ms.includes('Dum dum')) { mult += 1; dfontes.push('Dum dum +1 no crítico'); }
   if (it.fav && A.trilha === 'Aniquilador' && A.nex >= 99) { dn++; margem -= 2; dfontes.push('Máquina de Matar'); }
   if (ms.includes('Perigosa') || ms.includes('Mira laser')) margem -= 2;
   if (cac && trilhaN('Guerreiro', 10)) margem -= 2;
@@ -1191,7 +1193,9 @@ function ataqueInfo(it, sel = {}) {
   margem -= M.margem; mult += M.mult;
   let pe = 0;
   ops.forEach(o => { pe += o.pe || 0; if (o.dados) { dados += o.dados; fontes.push(`${o.nome.split(' (')[0]} ${sinal(o.dados)}d20`); } if (o.ataque) { bonus += o.ataque; fontes.push(`AE +${o.ataque}`); } if (o.dano) addF(o.dano, 'Ataque Especial'); if (o.dn) dn += o.dn; if (o.extra) extras.push(o.extra); if (o.margem) margem -= o.margem; if (o.mult) mult += o.mult; });
-  return { a, perNome, dados, bonus, fontes, notas, dn, df, fixo, dfontes, extras, margem: Math.max(2, margem), mult, alc: a[7], pe, ops };
+  const ALC = ['Curto', 'Médio', 'Longo', 'Extremo'], ai = ALC.indexOf(a[7]);
+  const alc = ms.includes('Mira telescópica') && ai >= 0 && ai < 3 ? ALC[ai + 1] : a[7];
+  return { a, perNome, dados, bonus, fontes, notas, dn, df, fixo, dfontes, extras, margem: Math.max(2, margem), mult, alc, pe, ops };
 }
 function linhaAtaque(a) { const it = A.inv.find(i => i.tipo === 'arma' && ARMAS[i.ref] === a) || { ref: ARMAS.indexOf(a), mods: [] }; const x = ataqueInfo(it); return { pericia: x.perNome, testeTxt: fmtT(x.dados, x.bonus), danoTxt: danoTxt(x), crit: (x.margem < 20 ? x.margem + '/' : '') + 'x' + x.mult, alc: x.alc, notas: x.notas }; }
 function danoTxt(x) { return `${x.dn}d${x.df}${x.extras.map(e => '+' + e).join('')}${x.fixo ? sinal(x.fixo) : ''}`; }
