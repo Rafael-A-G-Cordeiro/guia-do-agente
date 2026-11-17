@@ -645,10 +645,10 @@ const ARMAS = [
   ['Submetralhadora', 'Tática', 'Fogo', 'Uma mão', 'I', '2d6', '19/x3', 'Curto', 'B', '1', 'Automática. Balas curtas.'],
   ['Espingarda', 'Tática', 'Fogo', 'Duas mãos', 'I', '4d6', 'x3', 'Curto', 'B', '2', 'Metade do dano em alcance médio ou maior. Cartuchos.'],
   ['Fuzil de assalto', 'Tática', 'Fogo', 'Duas mãos', 'II', '2d10', '19/x3', 'Médio', 'B', '2', 'Automática. Balas longas.'],
-  ['Fuzil de precisão', 'Tática', 'Fogo', 'Duas mãos', 'III', '2d10', '19/x3', 'Longo', 'B', '2', 'Veterano em Pontaria + mirar: +5 na margem de ameaça.'],
+  ['Fuzil de precisão', 'Tática', 'Fogo', 'Duas mãos', 'III', '2d10', '19/x3', 'Longo', 'B', '2', 'Balas longas. Veterano em Pontaria + mirar: +5 na margem de ameaça.'],
   ['Bazuca', 'Pesada', 'Fogo', 'Duas mãos', 'III', '10d8', 'x2', 'Médio', 'I', '2', 'Atinge raio de 3m (outros na área: Reflexos DT Agi reduz à metade). Foguete: 1 por disparo.'],
   ['Lança-chamas', 'Pesada', 'Fogo', 'Duas mãos', 'III', '6d6', 'x2', 'Curto', 'Fogo', '2', 'Linha de 1,5m até alcance curto; um teste contra a Defesa de todos; atingidos ficam em chamas.'],
-  ['Metralhadora', 'Pesada', 'Fogo', 'Duas mãos', 'II', '2d12', '19/x3', 'Médio', 'B', '2', 'Automática. Precisa de FOR 4 ou apoiar (movimento), senão –5.']
+  ['Metralhadora', 'Pesada', 'Fogo', 'Duas mãos', 'II', '2d12', '19/x3', 'Médio', 'B', '2', 'Automática. Balas longas. Precisa de FOR 4 ou apoiar (movimento), senão –5.']
 ];
 const MUNICOES = [['Balas curtas', '0', '1', 'Pistola, revólver, submetralhadora. Dura 2 cenas.'], ['Balas longas', 'I', '1', 'Fuzis e metralhadora. Dura 1 cena.'], ['Cartuchos', 'I', '1', 'Espingarda. Dura 1 cena.'], ['Combustível', 'I', '1', 'Lança-chamas. Dura 1 cena.'], ['Flechas', '0', '1', 'Arcos e bestas. Duram a missão inteira.'], ['Foguete', 'I', '1', 'Bazuca. Um disparo cada.']];
 const MODS_ARMAS = [
@@ -925,7 +925,12 @@ function limiteRituais() {
   const ocult = A.classe === 'ocultista' ? 3 + (n - 1) : 0;
   const circOc = A.classe === 'ocultista' ? (A.nex >= 85 ? 4 : A.nex >= 55 ? 3 : A.nex >= 25 ? 2 : 1) : 0;
   const circAp = apr ? (A.nex >= 75 ? 3 : A.nex >= 45 ? 2 : 1) : 0;
-  return { total: ocult + apr, circ: Math.max(circOc, circAp), apr };
+  const circ = Math.max(circOc, circAp);
+  // Graduado (Saber Ampliado): 1 ritual a mais e +1 a cada novo círculo, fora do limite.
+  const saber = trilhaN('Graduado', 10) ? Math.max(1, circ) : 0;
+  // NEX 99% das trilhas de ocultista: aprende o ritual do Medo da trilha (fora do limite).
+  const medo = A.classe === 'ocultista' && A.trilha && A.nex >= 99 ? 1 : 0;
+  return { total: ocult + apr + saber + medo, circ, apr, saber, medo };
 }
 function pericasPermitidas() {
   // Intelecto final: aumentos de NEX também dão perícia treinada (livro p. 15 e cap. 2).
@@ -1063,7 +1068,9 @@ function derivados() {
   lim += M.lim + (aj.lim || 0);
   const dt = 10 + n + at.PRE + (aj.dt || 0), dtRit = dt + (trilhaN('Graduado', 65) ? 5 : 0);
   const penCarga = (sobre ? 5 : 0) + (pesada ? 5 : 0);
-  return { pv, pe, san, def, lim: Math.max(1, lim), carga, esp, sobre, dt, dtRit, bon, at, n, M, rd, desl, penCarga, semProfProt, antibomba, machucado, pesada };
+  // Intuitivo (Presença Poderosa): soma Presença ao limite de PE, só para conjurar.
+  const limRit = Math.max(1, lim) + (trilhaN('Intuitivo', 40) ? at.PRE : 0);
+  return { pv, pe, san, def, lim: Math.max(1, lim), limRit, carga, esp, sobre, dt, dtRit, bon, at, n, M, rd, desl, penCarga, semProfProt, antibomba, machucado, pesada };
 }
 function valorAtual(k, max) { const v = A.atual[k]; return v == null ? max : Math.max(0, Math.min(v, max)); }
 
@@ -1262,13 +1269,13 @@ function acoesFicha() {
 }
 
 /* ---------- PE, PV, SAN ---------- */
-function gastarPE(x, oque) {
+function gastarPE(x, oque, ritual) {
   if (!x) return true;
-  const D = derivados(), atual = valorAtual('pe', D.pe), t = A.temp.pe || 0;
+  const D = derivados(), atual = valorAtual('pe', D.pe), t = A.temp.pe || 0, limite = ritual ? D.limRit : D.lim;
   if (x > atual + t) { aviso(`PE insuficiente para ${oque} (precisa ${x}, tem ${atual + t}).`); return false; }
   const deT = Math.min(t, x); A.temp.pe = t - deT; A.atual.pe = atual - (x - deT);
   A.turno.peGasto = (A.turno.peGasto || 0) + x;
-  aviso(`–${x} PE · ${oque}${A.turno.peGasto > D.lim ? ` ⚠ passou do limite por turno (${A.turno.peGasto}/${D.lim})` : ''}`);
+  aviso(`–${x} PE · ${oque}${A.turno.peGasto > limite ? ` ⚠ passou do limite por turno (${A.turno.peGasto}/${limite})` : ''}`);
   return true;
 }
 function mudarRecurso(k, delta, opts = {}) {
@@ -1367,7 +1374,17 @@ function acaoRT(t) {
   }
   if (ds.rt === 'dano') {
     const C = rtCalc(), crit = ds.c === '1', n = crit ? C.dn * C.mult : C.dn;
-    const dsv = rolarDados(n, C.df), ex = []; C.extras.forEach(s => { const [q, f] = s.split('d'); ex.push(...rolarDados(+q || 1, +f)); });
+    // Atirador de Elite NEX 99% (Atirar para Matar): crítico com arma de fogo = dano máximo, sem rolar.
+    const maximo = crit && C.a[2] === 'Fogo' && trilhaN('Atirador de Elite', 99);
+    const rolar = (q, f) => maximo ? Array(q).fill(f) : rolarDados(q, f);
+    const dsv = rolar(n, C.df), ex = []; C.extras.forEach(s => { const [q, f] = s.split('d'); ex.push(...rolar(+q || 1, +f)); });
+    if (maximo) C.dfontes = C.dfontes.concat('Atirar para Matar: dano máximo');
+    // Lâmina Paranormal NEX 40% (Gladiador Paranormal): acerto corpo a corpo dá 2 PE temporários (máx. por cena = limite de PE).
+    if (C.a[2] === 'Corpo a corpo' && trilhaN('Lâmina Paranormal', 40)) {
+      const D2 = derivados(), ja = A.usos.gladiadorPE || 0, ganho = Math.min(2, Math.max(0, D2.lim - ja));
+      if (ganho) { A.temp.pe = (A.temp.pe || 0) + ganho; A.usos.gladiadorPE = ja + ganho; salvarA(); aviso(`Gladiador Paranormal: +${ganho} PE temporários (${ja + ganho}/${D2.lim} na cena).`); }
+      else aviso('Gladiador Paranormal: já ganhou o máximo de PE temporários nesta cena.');
+    }
     let bonusM = /Motosserra/.test(C.a[0]) ? dsv.filter(v => v === 6).length : 0; const mot = rolarDados(bonusM, 6);
     const tot = dsv.reduce((a, b) => a + b, 0) + ex.reduce((a, b) => a + b, 0) + mot.reduce((a, b) => a + b, 0) + C.fixo;
     RT.dano = { ds: dsv.concat(mot), ex, tot, txt: `${n}d${C.df}${crit ? ' (crítico x' + C.mult + ')' : ''}${C.extras.map(e => ' +' + e).join('')}${C.fixo ? ' ' + sinal(C.fixo) : ''}${C.dfontes.length ? ' · ' + C.dfontes.join(', ') : ''}` };
@@ -1455,7 +1472,7 @@ R.agente = () => {
 
   ${sec('status', 'Vida, esforço e sanidade', `
     ${barra('pv', 'PV', D.pv, 'var(--sangue)')}
-    <div class="row nowrap" style="margin:-4px 0 12px;gap:6px"><select class="campo mini" id="dmg-tipo" title="Tipo do dano (aplica sua RD)"><option value="">tipo de dano: comum</option>${['Balístico', 'Corte', 'Impacto', 'Perfuração', 'Fogo', 'Paranormal'].map(t => `<option>${t}</option>`).join('')}</select>${A.pericias.Fortitude ? `<label class="small nowrap" style="display:flex;gap:4px;align-items:center;white-space:nowrap"><input type="checkbox" id="dmg-bloq"> bloqueei</label>` : ''}</div>
+    <div class="row nowrap" style="margin:-4px 0 12px;gap:6px"><select class="campo mini" id="dmg-tipo" title="Tipo do dano (aplica sua RD)"><option value="">tipo de dano: comum</option>${['Balístico', 'Corte', 'Impacto', 'Perfuração', 'Fogo', 'Paranormal'].map(t => `<option>${t}</option>`).join('')}</select>${A.pericias.Fortitude ? `<label class="small nowrap" style="display:flex;gap:4px;align-items:center;white-space:nowrap"><input type="checkbox" id="dmg-bloq"> bloqueei</label>` : ''}${trilhaN('Tropa de Choque', 65) || trilhaN('Flagelador', 40) ? `<label class="small nowrap" style="display:flex;gap:4px;align-items:center;white-space:nowrap" title="${trilhaN('Tropa de Choque', 65) ? 'Duro de Matar' : 'Abraçar a Dor'}: reação + 2 PE, dano pela metade"><input type="checkbox" id="dmg-metade"> ½ (2 PE)</label>` : ''}</div>
     ${barra('pe', 'PE', D.pe, 'var(--conhecimento)')}${barra('san', 'SAN', D.san, 'var(--energia)')}
     <p class="small dim" style="margin:-4px 0 10px">Digite o valor e toque em Dano/Curar. O dano de PV desconta primeiro dos temporários e da sua RD (escolha o tipo). PE gastos neste turno: <b>${A.turno.peGasto || 0}/${D.lim}</b>.</p>
     ${A.cond.includes('Morrendo') ? `<div class="alerta"><b>💀 Morrendo</b> — começar 3 turnos assim na cena = morte. Medicina DT 20 estabiliza.<div class="row" style="margin-top:6px">${[1, 2, 3].map(n => `<button class="marca-turno ${A.turno.morte >= n ? 'on' : ''}" data-a="contador" data-k="morte" data-v="${n}">${n}</button>`).join('')}<span class="small dim">turnos (sobe sozinho a cada “novo turno”)</span></div></div>` : ''}
@@ -1542,7 +1559,7 @@ R.agente = () => {
     `<span class="mono small dim">${poderesClasse().length + paranormais().length} poderes</span>`)}
 
   ${sec('rituais', 'Rituais', `
-    ${lr.total ? `<p class="small mono" style="margin-top:0">Conhecidos: ${A.rituais.length} / ${lr.total} · até ${lr.circ}º círculo · DT ${D.dtRit}</p>`
+    ${lr.total ? `<p class="small mono" style="margin-top:0">Conhecidos: ${A.rituais.length} / ${lr.total}${lr.saber ? ` (Saber Ampliado +${lr.saber})` : ''}${lr.medo ? ' (ritual do Medo +1)' : ''} · até ${lr.circ}º círculo · DT ${D.dtRit}${D.limRit !== D.lim ? ` · limite p/ conjurar ${D.limRit} PE` : ''}</p>`
       : `<p class="small muted" style="margin-top:0">Sua classe não conjura rituais por padrão. Dá para aprender pelo poder paranormal <b>Aprender Ritual</b> (em Transcender), ou se o mestre liberar. Pode adicionar aqui mesmo assim. DT ${D.dtRit}.</p>`}
     <select class="campo" data-as="addritual"><option value="">+ aprender ritual</option>${[1, 2, 3, 4].filter(x => x <= Math.max(1, lr.circ)).map(ci => `<optgroup label="${ci}º círculo">${RITUAIS.filter(r => r.circulo === ci && !A.rituais.includes(r.nome) && !(r.elementos[0] === 'MEDO' && ci === 4)).map(r => `<option value="${esc(r.nome)}">${esc(r.nome)} (${r.elementos.map(cap).join('/')})</option>`).join('')}</optgroup>`).join('')}</select>
     <div style="margin-top:10px">${A.rituais.map((nm, i) => { const r = RITUAIS.find(x => x.nome === nm); if (!r) return ''; const el = cap(r.elementos[0]), custo = ({ 1: 1, 2: 3, 3: 6, 4: 10 })[r.circulo]; return `<div class="card rit" style="--c:${COR[el]};padding:12px"><div class="row nowrap"><span class="circ">${r.circulo}º</span><b style="flex:1">${esc(r.nome)}</b><button class="btn mini-btn" data-a="conjurar" data-i="${i}">✦ ${custo} PE</button><button class="tag red" data-a="rmritual" data-i="${i}">✕</button></div><p class="small" style="margin:6px 0 0">${esc(r.resumo)}</p><p class="small dim" style="margin:4px 0 0">${[r.execucao, r.alcance, r.alvo || r.area || r.efeito, r.duracao, r.resistencia].filter(Boolean).map(esc).join(' · ')} · p. ${r.pagina}</p></div>`; }).join('') || '<span class="small dim">Nenhum ritual ainda.</span>'}</div>
@@ -1640,7 +1657,14 @@ function acaoAgente(t) {
       if (ds.k === 'pv' && ds.s === '-1') {
         const D = derivados(), tipo = ($('#dmg-tipo') || {}).value || '', bloq = ($('#dmg-bloq') || {}).checked;
         let rd = (D.rd.Todos || 0) + (tipo ? D.rd[tipo] || 0 : 0); if (bloq) rd += bonusPer('Fortitude', D) + (temTrilha('Tropa de Choque') ? D.at.VIG : 0);
-        const final = Math.max(0, v - rd); aviso(`–${final} PV${rd ? ` (${v} – RD ${rd})` : ''}`); mudarRecurso('pv', -final, { dano: final });
+        let final = Math.max(0, v - rd), meio = '';
+        if (($('#dmg-metade') || {}).checked) {
+          const tropa = trilhaN('Tropa de Choque', 65), nomeP = tropa ? 'Duro de Matar' : 'Abraçar a Dor';
+          const vale = tipo !== 'Paranormal' || (tropa && A.trilha === 'Tropa de Choque' && A.nex >= 85);
+          if (!vale) aviso(`${nomeP} não vale contra dano paranormal${tropa ? ' antes de NEX 85%' : ''}.`);
+          else if (gastarPE(2, nomeP)) { final = Math.floor(final / 2); meio = ` · ${nomeP}: metade`; marcarAcao('reacao'); }
+        }
+        aviso(`–${final} PV${rd ? ` (${v} – RD ${rd})` : ''}${meio}`); mudarRecurso('pv', -final, { dano: final });
         if (bloq) marcarAcao('reacao'); break;
       }
       mudarRecurso(ds.k, +ds.s * v); break;
@@ -1665,7 +1689,7 @@ function acaoAgente(t) {
     case 'conjurar': {
       const r = RITUAIS.find(x => x.nome === A.rituais[+ds.i]); if (!r) return;
       const custo = ({ 1: 1, 2: 3, 3: 6, 4: 10 })[r.circulo] + (condsEfetivas().includes('Alquebrado') ? 1 : 0);
-      if (!gastarPE(custo, r.nome)) return;
+      if (!gastarPE(custo, r.nome, true)) return;
       const ex = { 'padrão': 'padrao', 'completa': 'comp', 'reação': 'reacao' }[r.execucao]; if (ex) marcarAcao(ex);
       salvarA(); render(true);
       if (r.elementos[0] === 'MEDO') aviso(`Ritual de Medo: perca ${custo} SAN e 1 SAN permanente.`);
@@ -1690,7 +1714,7 @@ function acaoAgente(t) {
     }
     case 'buffrapido': { const b = BUFFS_RAPIDOS[+ds.i]; addEfeito(Object.assign(JSON.parse(JSON.stringify(b)), { tinhaR: b.r > 0 })); aviso('✦ ' + b.nome); break; }
     case 'rmefeito': A.turno.efeitos.splice(+ds.i, 1); break;
-    case 'fimcombate': A.turno = { rodada: 1, efeitos: [], peGasto: 0, morte: 0, louco: 0 }; Object.keys(A.usos).forEach(k => { if (['rodada', 'turno', 'cena'].includes(A.usos[k])) delete A.usos[k]; }); A.temp = {}; delete A.insan; aviso('Cena encerrada.'); break;
+    case 'fimcombate': A.turno = { rodada: 1, efeitos: [], peGasto: 0, morte: 0, louco: 0 }; delete A.usos.gladiadorPE; Object.keys(A.usos).forEach(k => { if (['rodada', 'turno', 'cena'].includes(A.usos[k])) delete A.usos[k]; }); A.temp = {}; delete A.insan; aviso('Cena encerrada.'); break;
     case 'novoagente': { salvarA(); const id = novoId(); BANCO.lista[id] = A_PAD(); trocarAgente(id); aviso('Novo agente criado.'); render(false); return; }
     case 'dupagente': { salvarA(); const id = novoId(), copia = JSON.parse(JSON.stringify(A)); copia.nome = (A.nome || 'Agente') + ' (cópia)'; BANCO.lista[id] = copia; trocarAgente(id); render(false); return; }
     case 'usaragente': trocarAgente(ds.id); aviso('Agora usando: ' + (A.nome || 'Sem nome')); render(false); return;
