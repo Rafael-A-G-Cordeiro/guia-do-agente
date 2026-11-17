@@ -1626,7 +1626,7 @@ function acaoAgente(t) {
     case 'addinv': addInv(ds.k); break;
     case 'em-add': if (!A.cond.includes(ds.v)) A.cond.push(ds.v); aviso(`${ds.v} marcado na ficha de ${A.nome || 'seu agente'} (já aplicado nos números).`); break;
     case 'em-rm': A.cond = A.cond.filter(x => x !== ds.v); break;
-    case 'attr': A.base[ds.k] = Math.max(0, Math.min(5, A.base[ds.k] + +ds.d)); break;
+    case 'attr': { const mx = maximos(); A.base[ds.k] = Math.max(0, Math.min(5, A.base[ds.k] + +ds.d)); acompanharMaximos(mx); break; }
     case 'grau': { const g = +ds.g; if (g) A.pericias[ds.p] = g; else delete A.pericias[ds.p]; if (atual !== 'agente') aviso(`${ds.p}: ${GRAU_NOME[g]} → ${testeTxt(ds.p)}`); break; }
     case 'trk': mudarRecurso(ds.k, +ds.d); break;
     case 'trkv': {
@@ -1707,7 +1707,22 @@ function acaoAgente(t) {
   }
   salvarA(); render(true);
 }
+// Quando o máximo de PV/PE/SAN muda (NEX, aumento de atributo, poder…), o valor atual acompanha a diferença.
+function maximos() { const D = derivados(); return { pv: D.pv, pe: D.pe, san: D.san }; }
+function acompanharMaximos(antes) {
+  const depois = maximos();
+  ['pv', 'pe', 'san'].forEach(k => {
+    if (A.atual[k] == null) return;
+    const dif = depois[k] - antes[k]; if (!dif) return;
+    A.atual[k] = Math.max(0, Math.min(depois[k], A.atual[k] + dif));
+    if (A.atual[k] >= depois[k]) delete A.atual[k];
+  });
+}
 function mudarAgente(t) {
+  const antesMax = maximos();
+  try { mudarAgenteBase(t); } finally { acompanharMaximos(antesMax); salvarA(); render(true); }
+}
+function mudarAgenteBase(t) {
   const path = t.dataset.as, v = t.value;
   if (path === 'addcond') { if (v && !A.cond.includes(v)) A.cond.push(v); }
   else if (path === 'addritual') { if (v && !A.rituais.includes(v)) A.rituais.push(v); }
@@ -1720,7 +1735,6 @@ function mudarAgente(t) {
     if (path === 'versat' && val !== 'Transcender') delete A.transc.v;
     if (val === '' || val === 0) { if (Array.isArray(o)) o[ks[ks.length - 1]] = ''; else delete o[ks[ks.length - 1]]; } else o[ks[ks.length - 1]] = val;
   }
-  salvarA(); render(true);
 }
 function importarAgente(file) {
   const fr = new FileReader();
@@ -2212,20 +2226,18 @@ render(false);
 })();
 </script>
 <script>if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
-<script>// Aviso de instalação no celular (só na versão web).
+<script>// Instalação do app (só na versão web): aviso toda vez que abre pelo navegador + botão fixo no topo.
 (function () {
   if (location.protocol === 'file:') return;
+  const instalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (instalado()) return;
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const android = /Android/.test(ua);
-  if (!ios && !android) return;
-  const instalado = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  if (instalado) return;
-  const chave = 'guia-instalar-fechado';
-  try { const t = +localStorage.getItem(chave); if (t && Date.now() - t < 3 * 864e5) return; } catch (e) {}
-
+  const celular = ios || android;
   // Navegador de dentro de app (WhatsApp, Instagram, Facebook…): não instala, nem guarda direito.
   const dentroDeApp = /WhatsApp|Instagram|FBAN|FBAV|FB_IAB|Line\/|Telegram/i.test(ua) || (android && /; wv\)/.test(ua)) || (ios && !/Safari\//.test(ua));
+  let promptAndroid = null;
 
   const css = document.createElement('style');
   css.textContent = `
@@ -2237,60 +2249,93 @@ render(false);
 .instalar img { width: 44px; height: 44px; border-radius: 10px; flex: none; }
 .instalar b { display: block; font-family: var(--f-type, monospace); font-size: 15px; margin-bottom: 2px; }
 .instalar p { margin: 0; color: var(--muted, #a39aa3); }
+.instalar ol { margin: 6px 0 0; padding-left: 18px; color: var(--muted, #a39aa3); }
 .instalar .acoes { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .instalar button, .instalar a.btn { border: 0; border-radius: 9px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
 .instalar .sim { background: var(--red, #c1121f); color: #fff; }
 .instalar .nao { background: transparent; color: var(--muted, #a39aa3); border: 1px solid var(--line2, #3d3545); }
 .instalar .x { position: absolute; top: 6px; right: 8px; background: none; border: 0; color: var(--dim, #6e6670); font-size: 20px; padding: 4px 8px; }
-.instalar .ico { display: inline-block; padding: 0 5px; border: 1px solid var(--line2, #3d3545); border-radius: 5px; color: var(--text, #ebe5dc); }`;
+.instalar .ico { display: inline-block; padding: 0 5px; border: 1px solid var(--line2, #3d3545); border-radius: 5px; color: var(--text, #ebe5dc); }
+.instalar em { font-style: normal; color: var(--text, #ebe5dc); font-weight: 600; }
+.btn-instalar { display: flex; align-items: center; gap: 6px; flex: none; background: rgba(193,18,31,.15); border: 1px solid var(--red, #c1121f); border-radius: 22px;
+  padding: 8px 12px; color: var(--text, #ebe5dc); font: 600 13px var(--f-sans, system-ui, sans-serif); cursor: pointer; }
+@media (max-width: 420px) { .btn-instalar { padding: 8px 10px; } #abrir-busca span { display: none; } #abrir-busca { padding: 8px 11px; } }`;
   document.head.appendChild(css);
 
-  let promptAndroid = null;
   const caixa = document.createElement('div');
   caixa.className = 'instalar';
   caixa.setAttribute('role', 'dialog');
   caixa.setAttribute('aria-label', 'Instalar o Guia do Agente');
-  const fechar = (lembrar) => { if (lembrar) { try { localStorage.setItem(chave, Date.now()); } catch (e) {} } caixa.remove(); };
+  const fechar = () => caixa.remove();
 
   function montar(titulo, texto, botoes) {
-    caixa.innerHTML = `<img src="icone-192.png" alt=""><div style="flex:1;min-width:0;padding-right:18px"><b>${titulo}</b><p>${texto}</p><div class="acoes">${botoes || ''}</div></div><button class="x" aria-label="Fechar">×</button>`;
-    caixa.querySelector('.x').onclick = () => fechar(true);
-    const nao = caixa.querySelector('.nao'); if (nao) nao.onclick = () => fechar(true);
+    caixa.innerHTML = `<img src="icone-192.png" alt=""><div style="flex:1;min-width:0;padding-right:18px"><b>${titulo}</b>${texto}<div class="acoes">${botoes || ''}</div></div><button class="x" aria-label="Fechar">×</button>`;
+    caixa.querySelector('.x').onclick = fechar;
+    const nao = caixa.querySelector('.nao'); if (nao) nao.onclick = fechar;
+    const sim = caixa.querySelector('.sim[data-instalar]'); if (sim) sim.onclick = instalarAndroid;
     if (!caixa.isConnected) document.body.appendChild(caixa);
   }
 
-  if (dentroDeApp) {
-    if (android) {
+  async function instalarAndroid() {
+    if (!promptAndroid) { mostrar(true); return; }
+    const p = promptAndroid; promptAndroid = null;
+    p.prompt();
+    const r = await p.userChoice.catch(() => null);
+    if (r && r.outcome === 'accepted') { fechar(); botao && botao.remove(); }
+  }
+
+  // Mostra a explicação certa para onde a pessoa está.
+  function mostrar(manual) {
+    if (dentroDeApp && android) {
       const intent = 'intent://' + location.host + location.pathname + location.search + '#Intent;scheme=https;package=com.android.chrome;end';
-      montar('Abra no Chrome', 'Aqui dentro do app suas fichas podem se perder. Abra no Chrome para instalar o guia e salvar seus agentes.',
+      return montar('Abra no Chrome', '<p>Aqui dentro do app suas fichas podem se perder. Abra no Chrome para instalar o guia e salvar seus agentes.</p>',
         `<a class="btn sim" href="${intent}">Abrir no Chrome</a><button class="nao">Agora não</button>`);
-    } else {
-      montar('Abra no Safari', 'Aqui dentro do app suas fichas podem se perder. Toque em <span class="ico">•••</span> ou <span class="ico">⬆</span> e escolha <b style="display:inline;font:inherit;color:var(--text)">Abrir no Safari</b>.',
+    }
+    if (dentroDeApp && ios) {
+      return montar('Abra no Safari', '<p>Aqui dentro do app suas fichas podem se perder. Toque em <span class="ico">•••</span> ou <span class="ico">⬆</span> e escolha <em>Abrir no Safari</em>. Lá você instala o guia.</p>',
         '<button class="nao">Entendi</button>');
     }
-    return;
+    if (ios) {
+      return montar('Instale o Guia do Agente', '<ol><li>Toque em <span class="ico">⬆</span> <em>Compartilhar</em> (embaixo ou no topo do Safari).</li><li>Role e toque em <em>Adicionar à Tela de Início</em>.</li><li>Toque em <em>Adicionar</em>.</li></ol>',
+        '<button class="nao">Agora não</button>');
+    }
+    if (promptAndroid && !manual) {
+      return montar('Instale o Guia do Agente', '<p>Vira um app na sua tela inicial e funciona sem internet.</p>',
+        '<button class="sim" data-instalar="1">Instalar</button><button class="nao">Agora não</button>');
+    }
+    return montar('Instale o Guia do Agente', `<ol><li>Toque nos <span class="ico">⋮</span> três pontinhos do navegador.</li><li>Escolha <em>Instalar app</em> ou <em>Adicionar à tela inicial</em>.</li></ol>`,
+      '<button class="nao">Entendi</button>');
   }
 
-  if (ios) {
-    setTimeout(() => montar('Instale o Guia do Agente', 'Toque em <span class="ico">⬆</span> Compartilhar e depois em <b style="display:inline;font:inherit;color:var(--text)">Adicionar à Tela de Início</b>. Funciona sem internet.',
-      '<button class="nao">Agora não</button>'), 2500);
-    return;
+  // Botão fixo no topo, sempre à mão.
+  let botao = null;
+  function criarBotao() {
+    if (botao || instalado()) return;
+    const busca = document.getElementById('abrir-busca'); if (!busca) return;
+    botao = document.createElement('button');
+    botao.className = 'btn-instalar'; botao.type = 'button';
+    botao.innerHTML = '📲 <span>Instalar</span>';
+    botao.setAttribute('aria-label', 'Instalar o Guia do Agente');
+    botao.onclick = () => (promptAndroid && !dentroDeApp ? instalarAndroid() : mostrar());
+    busca.parentNode.insertBefore(botao, busca);
   }
 
-  // Android no Chrome/Edge/Samsung: botão de instalar de verdade.
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     promptAndroid = e;
-    montar('Instale o Guia do Agente', 'Vira um app na sua tela inicial e funciona sem internet.',
-      '<button class="sim">Instalar</button><button class="nao">Agora não</button>');
-    caixa.querySelector('.sim').onclick = async () => {
-      promptAndroid.prompt();
-      const r = await promptAndroid.userChoice.catch(() => null);
-      promptAndroid = null;
-      fechar(!r || r.outcome !== 'accepted');
-    };
+    criarBotao();
+    if (celular) mostrar();
   });
-  window.addEventListener('appinstalled', () => fechar(false));
+  window.addEventListener('appinstalled', () => { fechar(); if (botao) botao.remove(); });
+
+  if (celular) {
+    const iniciar = () => {
+      criarBotao();
+      // Toda vez que abre pelo navegador, mostra o aviso (no Android com Chrome espera o evento de instalação, se ele vier).
+      setTimeout(() => { if (!caixa.isConnected) mostrar(); }, android && !dentroDeApp ? 3500 : 1500);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+  }
 })();
 </script>
 </body>

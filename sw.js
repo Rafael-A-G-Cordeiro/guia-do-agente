@@ -1,5 +1,5 @@
 // Service worker do Guia do Agente: funciona offline e pega atualizações quando há internet.
-const CACHE = 'guia-agente-7685cbba1b';
+const CACHE = 'guia-agente-021993560b';
 const BASE = ['./', './index.html', './manifest.webmanifest', './icone-192.png', './icone-512.png'];
 
 self.addEventListener('install', e => {
