@@ -1009,7 +1009,22 @@ function espItem(it) {
   if ((it.mods || []).includes('Blindada') || (it.mods || []).includes('Reforçada')) e++;
   return Math.max(0, e) * (it.qtd || 1);
 }
-const modsDisponiveis = it => it.tipo === 'arma' ? MODS_ARMAS.map(m => m[0]) : it.tipo === 'prot' ? MODS_PROTECAO.map(m => m[0]) : /^(Kit de perícia|Utensílio|Vestimenta)/.test(it.nome) ? MODS_ACESSORIOS.map(m => m[0]) : [];
+// Só as modificações que o livro permite para aquele item (Tabela 3.5 e proteções).
+function modsDisponiveis(it) {
+  const ms = it.mods || [];
+  if (it.tipo === 'arma') {
+    const a = ARMAS[it.ref]; if (!a) return MODS_ARMAS.map(m => m[0]);
+    const fogo = a[2] === 'Fogo', cacDisp = a[2] === 'Corpo a corpo' || a[2] === 'Disparo';
+    const balas = /Balas (curtas|longas)/i.test(a[10]), auto = /Automática/.test(a[10]) || ms.includes('Ferrolho automático');
+    const ok = { 'CaC/disparo': cacDisp, 'Todas': true, 'Fogo': fogo, 'Automáticas': fogo && auto, 'Munição': fogo && balas };
+    return MODS_ARMAS.filter(([nome, onde]) => ok[onde] && !(nome === 'Ferrolho automático' && /Automática/.test(a[10]))).map(m => m[0]);
+  }
+  if (it.tipo === 'prot') {
+    const pesada = /pesada/i.test(it.nome), leve = /leve/i.test(it.nome);
+    return MODS_PROTECAO.map(m => m[0]).filter(n => (n === 'Antibombas' || n === 'Blindada') ? pesada : n === 'Discreta' ? leve && !ms.includes('Reforçada') : n === 'Reforçada' ? !ms.includes('Discreta') : true);
+  }
+  return /^(Kit de perícia|Utensílio|Vestimenta)/.test(it.nome) ? MODS_ACESSORIOS.map(m => m[0]) : [];
+}
 const usaPericia = it => /^(Kit de perícia|Utensílio|Vestimenta)/.test(it.nome);
 
 function derivados() {
@@ -1164,7 +1179,8 @@ function opcoesAtaque(it) {
   return L;
 }
 function ataqueInfo(it, sel = {}) {
-  const a = ARMAS[it.ref], D = derivados(), M = D.M, at = D.at, cp = poderesClasse(), pp = paranormais(), ms = it.mods || [];
+  // Só conta modificação que vale para este tipo de arma.
+  const a = ARMAS[it.ref], D = derivados(), M = D.M, at = D.at, cp = poderesClasse(), pp = paranormais(), validas = modsDisponiveis(it), ms = (it.mods || []).filter(m => validas.includes(m));
   const cac = a[2] === 'Corpo a corpo', agil = /Ágil/.test(a[10]), fogo = a[2] === 'Fogo', disp = a[2] === 'Disparo';
   const ops = opcoesAtaque(it).filter(o => sel[o.id]);
   const ocult = ops.some(o => o.ocult);
@@ -1585,7 +1601,7 @@ R.agente = () => {
         ${it.nota ? `<div class="small muted">${esc(it.nota)}</div>` : ''}
         ${toggles.length ? `<div class="inv-flags small">${toggles.join('')}</div>` : ''}
         ${usaPericia(it) ? `<select class="campo mini" data-as="inv.${i}.per" style="margin-top:6px"><option value="">— para qual perícia? —</option>${PERICIAS.filter(p => p.nome !== 'Luta' && p.nome !== 'Pontaria' && (it.nome !== 'Kit de perícia' || p.kit)).map(p => `<option ${it.per === p.nome ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>` : ''}
-        ${(it.mods || []).length || md.length ? `<div class="row" style="margin-top:6px">${(it.mods || []).map((m, j) => `<button class="tag" data-a="rmmod" data-i="${i}" data-j="${j}">${esc(m)} ✕</button>`).join('')}${md.length ? `<select class="campo mini" data-as="addmod.${i}" style="width:auto;flex:1;min-width:140px"><option value="">+ modificação (+I cat)</option>${md.map(m => `<option>${esc(m)}</option>`).join('')}</select>` : ''}</div>` : ''}
+        ${(it.mods || []).length || md.length ? `<div class="row" style="margin-top:6px">${(it.mods || []).map((m, j) => { const vale = it.tipo !== 'arma' || modsDisponiveis(it).includes(m); return `<button class="tag${vale ? '' : ' red'}" data-a="rmmod" data-i="${i}" data-j="${j}"${vale ? '' : ' title="Não vale nesta arma: não entra na conta. Toque para tirar."'}>${vale ? '' : '⚠ '}${esc(m)}${vale ? '' : ' (não vale aqui)'} ✕</button>`; }).join('')}${md.length ? `<select class="campo mini" data-as="addmod.${i}" style="width:auto;flex:1;min-width:140px"><option value="">+ modificação (+I cat)</option>${md.map(m => `<option>${esc(m)}</option>`).join('')}</select>` : ''}</div>` : ''}
         ${extra}</div>`; }).join('') || '<span class="small dim">Inventário vazio. Busque acima ou use os botões ＋ na página Equipamento.</span>'}</div>`,
     `<span class="mono small dim">${D.esp}/${D.carga} esp</span>`)}
 
