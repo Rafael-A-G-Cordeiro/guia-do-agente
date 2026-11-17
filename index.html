@@ -928,7 +928,8 @@ function limiteRituais() {
   return { total: ocult + apr, circ: Math.max(circOc, circAp), apr };
 }
 function pericasPermitidas() {
-  const c = classeA(), b = A.base.INT;
+  // Intelecto final: aumentos de NEX também dão perícia treinada (livro p. 15 e cap. 2).
+  const c = classeA(), b = attrsFinais().INT;
   const cls = c.id === 'combatente' ? 2 + 1 + b : c.id === 'especialista' ? 7 + b : 2 + 3 + b;
   const treino = poderesClasse().filter(p => p === 'Treinamento em Perícia').length * 2;
   return 2 + cls + treino;
@@ -1515,7 +1516,7 @@ R.agente = () => {
     `<span class="mono small dim">${ATTRS.map(k => k[0] + at[k]).join(' ')}</span>`)}
 
   ${sec('pericias', 'Perícias', `
-    <p class="small mono" style="margin-top:0;color:${treinadas > permitidas ? 'var(--red-hi)' : 'var(--muted)'}">Treinadas: ${treinadas} / ${permitidas} <span class="dim">(origem 2 + classe ${permitidas - 2}${poderesClasse().includes('Treinamento em Perícia') ? ' + poderes' : ''})</span></p>
+    <p class="small mono" style="margin-top:0;color:${treinadas > permitidas ? 'var(--red-hi)' : 'var(--muted)'}">Treinadas: ${treinadas} / ${permitidas} <span class="dim">(origem 2 + classe e Intelecto ${permitidas - 2}${poderesClasse().includes('Treinamento em Perícia') ? ' + poderes' : ''})</span></p>
     ${A.nex >= 35 ? `<p class="small" style="color:var(--warn)">Grau de treinamento: em NEX 35%${A.nex >= 70 ? ' e 70%' : ''}, suba ${c.grauN} perícias treinadas um grau.</p>` : ''}
     ${o ? `<button class="btn" data-a="marcarorigem" style="margin-bottom:10px">✓ Marcar perícias da origem${c.id === 'ocultista' ? ' e da classe' : ''}</button>` : ''}
     <p class="small dim" style="margin:0 0 6px">O valor já soma treino, poderes, trilha, itens, condições e buffs. Toque em 🎲 para rolar com as opções que gastam PE.</p>
