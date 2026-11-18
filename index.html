@@ -867,7 +867,7 @@ R.poderes = () => `<div class="eyebrow">Transcender</div><h1 class="titulo">Pode
 
 /* ---------- MEU AGENTE (ficha montável, salva só neste aparelho) ---------- */
 const NEXES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 99];
-const A_PAD = () => ({ v: 2, nome: '', jogador: '', classe: 'combatente', origem: '', nex: 5, patente: 'Recruta', base: { AGI: 1, FOR: 1, INT: 1, PRE: 1, VIG: 1 }, aumentos: {}, pericias: {}, trilha: '', poderes: {}, transc: {}, versat: '', rituais: [], atual: {}, temp: {}, inv: [], cond: [], notas: '', perito: [], ajuste: {}, perBonus: {}, usos: {}, abertos: { status: true, acoes: true } });
+const A_PAD = () => ({ v: 2, nome: '', jogador: '', classe: 'combatente', origem: '', nex: 5, patente: 'Recruta', base: { AGI: 1, FOR: 1, INT: 1, PRE: 1, VIG: 1 }, aumentos: {}, pericias: {}, trilha: '', poderes: {}, transc: {}, versat: '', afinidade: '', rituais: [], atual: {}, temp: {}, inv: [], cond: [], notas: '', perito: [], ajuste: {}, perBonus: {}, usos: {}, abertos: { status: true, acoes: true } });
 function normA(s) {
   const p = A_PAD(); if (!s) return p; const a = Object.assign(p, s);
   ['base', 'aumentos', 'pericias', 'poderes', 'transc', 'atual', 'temp', 'ajuste', 'perBonus', 'usos', 'abertos'].forEach(k => { a[k] = Object.assign({}, p[k], s[k] || {}); });
@@ -914,6 +914,10 @@ function paranormais() {
   if (A.origem === 'Cultista Arrependido' && A.transc.origem) L.push(A.transc.origem);
   return L;
 }
+// Afinidade elemental (livro p. 112): escolhida em NEX 50%; poderes desse elemento podem ser pegos 2x para o benefício "Afinidade".
+const elemPar = nome => (PODERES_PARANORMAIS.find(p => p.nome === nome) || {}).el;
+function afinidadeAtiva() { return A.nex >= 50 && !!A.afinidade; }
+function temAfinidade(nome) { return afinidadeAtiva() && elemPar(nome) === A.afinidade && paranormais().filter(p => p === nome).length >= 2; }
 function trilhaNiveis() { const c = classeA(), t = c.trilhas.find(x => x.nome === A.trilha); return t ? t.niveis.map(([n, nm, tx]) => ({ n, nm, tx, ok: n <= A.nex && A.nex >= 10 })) : []; }
 function versatTrilha() { if (A.nex < 50 || !A.versat.startsWith('trilha:')) return null; const t = classeA().trilhas.find(x => x.nome === A.versat.slice(7)); return t ? { trilha: t.nome, nm: t.niveis[0][1], tx: t.niveis[0][2] } : null; }
 // trilha principal (a partir de NEX 10%) ou o 1º poder dela via Versatilidade
@@ -1035,7 +1039,7 @@ function derivados() {
   if (pp.includes('Sangue de Ferro')) { pv += 2 * n; bon.push(`Sangue de Ferro +${2 * n} PV`); }
   let lim = n;
   if (A.origem === 'Universitário') { const x = 1 + Math.floor((n - 1) / 2); pe += x; lim += 1; bon.push(`Dedicação +${x} PE e +1 no limite`); }
-  if (pp.includes('Potencial Aprimorado')) { pe += n; bon.push(`Potencial Aprimorado +${n} PE`); }
+  if (pp.includes('Potencial Aprimorado')) { const x = temAfinidade('Potencial Aprimorado') ? 2 * n : n; pe += x; bon.push(`Potencial Aprimorado +${x} PE${x > n ? ' (afinidade)' : ''}`); }
   const t = transcends(); if (t) { san -= t * c.san[1]; bon.push(`Transcender ×${t}: –${t * c.san[1]} SAN`); }
   if (A.origem === 'Vítima') { san += n; bon.push(`Cicatrizes Psicológicas +${n} SAN`); }
   if (A.origem === 'Cultista Arrependido') { const m = Math.ceil(c.san[0] / 2); san -= m; bon.push(`Traços do Outro Lado –${m} SAN`); }
@@ -1094,6 +1098,7 @@ function fixosPericia(nome) {
   const pp = paranormais(), cp = poderesClasse(), F = [], N = [];
   if (trilhaN('Infiltrador', 40) && (nome === 'Atletismo' || nome === 'Crime')) F.push([5, 'Gatuno']);
   if (trilhaN('Operações Especiais', 10) && nome === 'Iniciativa') F.push([5, 'Iniciativa Aprimorada']);
+  if (nome === 'Fortitude' && temAfinidade('Sangue de Ferro')) F.push([5, 'Sangue de Ferro (afinidade)']);
   if (pp.includes('Visão do Oculto') && nome === 'Percepção') F.push([5, 'Visão do Oculto']);
   if (pp.includes('Sensitivo') && ['Diplomacia', 'Intimidação', 'Intuição'].includes(nome)) F.push([5, 'Sensitivo']);
   if (RESIST.includes(nome)) { if (cp.includes('Reflexos Defensivos')) F.push([2, 'Reflexos Defensivos']); if (pp.includes('Precognição')) F.push([2, 'Precognição']); }
@@ -1212,7 +1217,7 @@ function ataqueInfo(it, sel = {}) {
   if (it.fav && A.trilha === 'Aniquilador' && A.nex >= 99) { dn++; margem -= 2; dfontes.push('Máquina de Matar'); }
   if (ms.includes('Perigosa') || ms.includes('Mira laser')) margem -= 2;
   if (cac && trilhaN('Guerreiro', 10)) margem -= 2;
-  if (pp.includes('Golpe de Sorte')) margem -= 1;
+  if (pp.includes('Golpe de Sorte')) { margem -= 1; if (temAfinidade('Golpe de Sorte')) { mult += 1; dfontes.push('Golpe de Sorte (afinidade) +1 no crítico'); } }
   margem -= M.margem; mult += M.mult;
   let pe = 0;
   ops.forEach(o => { pe += o.pe || 0; if (o.dados) { dados += o.dados; fontes.push(`${o.nome.split(' (')[0]} ${sinal(o.dados)}d20`); } if (o.ataque) { bonus += o.ataque; fontes.push(`AE +${o.ataque}`); } if (o.dano) addF(o.dano, 'Ataque Especial'); if (o.dn) dn += o.dn; if (o.extra) extras.push(o.extra); if (o.margem) margem -= o.margem; if (o.mult) mult += o.mult; });
@@ -1448,9 +1453,13 @@ R.agente = () => {
     <div class="trk-ctl${k === 'san' ? ' sem-temp' : ''}"><button data-a="trk" data-k="${k}" data-d="-1">−1</button><input class="campo" type="number" inputmode="numeric" min="0" id="q-${k}" placeholder="valor"><button class="menos" data-a="trkv" data-k="${k}" data-s="-1">${ROT[k][0]}</button><button class="mais" data-a="trkv" data-k="${k}" data-s="1">${ROT[k][1]}</button>${k !== 'san' ? `<button data-a="trkv" data-k="${k}" data-s="t" title="Pontos temporários">temp</button>` : ''}<button data-a="trk" data-k="${k}" data-d="1">+1</button></div></div>`; };
   const slots = slotsPoder(c);
   const opcoesPoder = (n, atualV) => { const ja = poderesClasse(); return `<option value="">— escolher poder —</option>${c.poderes.map(p => { const usado = ja.includes(p.nome) && p.nome !== atualV && !REPETIVEIS.includes(p.nome); return `<option value="${esc(p.nome)}" ${p.nome === atualV ? 'selected' : ''} ${usado ? 'disabled' : ''}>${esc(p.nome)}${p.pre ? ' (' + esc(p.pre) + ')' : ''}</option>`; }).join('')}`; };
-  const opcoesPar = (atualV) => { const ja = paranormais(); return `<option value="">— poder paranormal —</option>${PODERES_PARANORMAIS.map(p => `<option value="${esc(p.nome)}" ${p.nome === atualV ? 'selected' : ''} ${ja.includes(p.nome) && p.nome !== atualV && p.nome !== 'Aprender Ritual' ? 'disabled' : ''}>${esc(p.el)}: ${esc(p.nome)}${p.pre ? ' (' + esc(p.pre) + ')' : ''}</option>`).join('')}`; };
+  const opcoesPar = (atualV) => { const ja = paranormais(); return `<option value="">— poder paranormal —</option>${PODERES_PARANORMAIS.map(p => {
+    const qtd = ja.filter(x => x === p.nome).length - (p.nome === atualV ? 1 : 0);
+    const segunda = qtd === 1 && afinidadeAtiva() && p.el === A.afinidade; // 2ª vez = benefício de Afinidade
+    const bloq = qtd >= 1 && !segunda && p.nome !== 'Aprender Ritual';
+    return `<option value="${esc(p.nome)}" ${p.nome === atualV ? 'selected' : ''} ${bloq ? 'disabled' : ''}>${esc(p.el)}: ${esc(p.nome)}${segunda ? ' — 2ª vez (Afinidade)' : p.pre ? ' (' + esc(p.pre) + ')' : ''}</option>`; }).join('')}`; };
   const textoPoder = nome => { const p = c.poderes.find(x => x.nome === nome); return p ? `<p class="small muted" style="margin:6px 0 0">${esc(p.texto)}</p>` : ''; };
-  const textoPar = nome => { const p = PODERES_PARANORMAIS.find(x => x.nome === nome); return p ? `<p class="small muted" style="margin:6px 0 0">${esc(p.texto)}</p>` : ''; };
+  const textoPar = nome => { const p = PODERES_PARANORMAIS.find(x => x.nome === nome); return p ? `<p class="small muted" style="margin:6px 0 0">${esc(p.texto)}${temAfinidade(nome) ? ' <b style="color:var(--ok)">✓ Afinidade ativa.</b>' : ''}</p>` : ''; };
   const pat = PATENTES.find(p => p.nome === A.patente) || PATENTES[0];
   const cats = { I: 0, II: 0, III: 0, IV: 0 }; A.inv.forEach(i => { const k = catEfetiva(i); if (cats[k] != null) cats[k] += i.qtd || 1; });
   const pvAt = valorAtual('pv', D.pv), sanAt = valorAtual('san', D.san);
@@ -1571,7 +1580,9 @@ R.agente = () => {
     ${slots.map(n => { const v = A.poderes[n] || '', ok = n <= A.nex; return `<div class="slot" style="opacity:${ok ? 1 : .45}"><div class="row nowrap"><span class="mono small" style="width:44px">${ok ? '' : '🔒'}${n}%</span><select class="campo" data-as="poderes.${n}" ${ok ? '' : 'disabled'}>${opcoesPoder(n, v)}</select></div>${ok ? textoPoder(v) : ''}${ok && v === 'Transcender' ? `<select class="campo" style="margin-top:6px" data-as="transc.${n}">${opcoesPar(A.transc[n])}</select>${textoPar(A.transc[n])}` : ''}</div>`; }).join('')}
     ${A.nex >= 50 ? `<label class="lbl">Versatilidade (NEX 50%)</label><select class="campo" data-as="versat"><option value="">— escolher —</option><optgroup label="Poder de classe extra">${c.poderes.map(p => `<option value="${esc(p.nome)}" ${A.versat === p.nome ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</optgroup><optgroup label="1º poder de outra trilha">${c.trilhas.filter(t => t.nome !== A.trilha).map(t => `<option value="trilha:${esc(t.nome)}" ${A.versat === 'trilha:' + t.nome ? 'selected' : ''}>${esc(t.nome)}: ${esc(t.niveis[0][1])}</option>`).join('')}</optgroup></select>
       ${A.versat === 'Transcender' ? `<select class="campo" style="margin-top:6px" data-as="transc.v">${opcoesPar(A.transc.v)}</select>${textoPar(A.transc.v)}` : ''}${versatTrilha() ? `<p class="small muted">${esc(versatTrilha().nm)}: ${esc(versatTrilha().tx)}</p>` : textoPoder(A.versat)}` : ''}
-    ${paranormais().length ? `<label class="lbl">Poderes paranormais</label>${paranormais().map(p => `<div class="hab"><b>${esc(p)}</b>${textoPar(p)}</div>`).join('')}` : ''}`,
+    ${A.nex >= 50 ? `<label class="lbl">Afinidade elemental (NEX 50%)</label><select class="campo" data-as="afinidade"><option value="">— nenhuma —</option>${['Conhecimento', 'Energia', 'Morte', 'Sangue'].map(e => `<option ${A.afinidade === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
+      <p class="small dim" style="margin:4px 0 0">Vale depois de transcender de novo. Com ela, você pode pegar um poder paranormal desse elemento uma 2ª vez para ganhar o bônus “Afinidade”.</p>` : ''}
+    ${paranormais().length ? `<label class="lbl">Poderes paranormais</label>${[...new Set(paranormais())].map(p => `<div class="hab"><b>${esc(p)}${paranormais().filter(x => x === p).length > 1 && p !== 'Aprender Ritual' ? ' ×2' : ''}</b>${textoPar(p)}</div>`).join('')}` : ''}`,
     `<span class="mono small dim">${poderesClasse().length + paranormais().length} poderes</span>`)}
 
   ${sec('rituais', 'Rituais', `
